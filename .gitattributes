@@ -1,0 +1,2 @@
+models/retriever/model.safetensors filter=lfs diff=lfs merge=lfs -text
+models/**/*.safetensors filter=lfs diff=lfs merge=lfs -text
