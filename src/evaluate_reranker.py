@@ -1,43 +1,65 @@
-from metrics import *
-from tqdm import tqdm
+# evaluate_pipeline.py
+import json
+from datasets import load_dataset
+from metrics import recall_at_k, hit_rate_at_k, mrr, ndcg_at_k
 
+def load_run(file_path, top_k=None):
+    predictions = {}
+    with open(file_path, "r", encoding="utf-8") as f:
+        for line in f:
+            item = json.loads(line)
+            qid = item["query_id"]
+            if "passages" in item:
+                pids = [cand["passage_id"] for cand in item["passages"]]
+            else:
+                pids = [cand["passage_id"] for cand in item["candidates"]]
+            if top_k:
+                pids = pids[:top_k]
+            predictions[qid] = pids
+    return predictions
 
-def evaluate_reranker(
-    queries,
-    relevant_docs,
-    retriever,
-    reranker,
-    retrieve_k=50,
-    final_k=20
-):
-    """
-    reranker.score(query, List[text]) -> List[float]
-    """
-    all_preds = []
+def main():
+    qrels_ds = load_dataset("PaDaS-Lab/webfaq-retrieval", "pol-qrels", split="test")
+    qrels = {}
+    for row in qrels_ds:
+        qid = row["query-id"]
+        pid = row["corpus-id"]
+        qrels.setdefault(qid, set()).add(pid)
 
-    for q in tqdm(queries, desc="Evaluating Reranker"):
-        candidates = retriever.search(q, top_k=retrieve_k)
-        texts = [c["text"] for c in candidates]
+    retriever_preds = load_run(":/pipeline/retrieved_top100test.jsonl", top_k=10)
+    common_qids_retr = [qid for qid in qrels if qid in retriever_preds]
+    targets_retr = [qrels[qid] for qid in common_qids_retr]
+    preds_retr = [retriever_preds[qid] for qid in common_qids_retr]
 
-        scores = reranker.score(q, texts)
+    retr_metrics = {
+        "Recall@5": recall_at_k(preds_retr, targets_retr, 5),
+        "Recall@10": recall_at_k(preds_retr, targets_retr, 10),
+        "MRR": mrr(preds_retr, targets_retr),
+        "nDCG@10": ndcg_at_k(preds_retr, targets_retr, k=10),
+    }
 
-        ranked = sorted(
-            zip(candidates, scores),
-            key=lambda x: x[1],
-            reverse=True
-        )
+    reranker_preds = load_run(":/pipeline/top10.jsonl")
+    common_qids_rerank = [qid for qid in qrels if qid in reranker_preds]
 
-        all_preds.append([
-            c["doc_id"] for c, _ in ranked[:final_k]
-        ])
+    targets_rerank = [qrels[qid] for qid in common_qids_rerank]
+    preds_rerank = [reranker_preds[qid] for qid in common_qids_rerank]
 
-    results = {}
-    for k in [5, 10, 20]:
-        results[f"Recall@{k}"] = recall_at_k(all_preds, relevant_docs, k)
-        results[f"HitRate@{k}"] = hit_rate_at_k(all_preds, relevant_docs, k)
+    rerank_metrics = {
+        "Recall@5": recall_at_k(preds_rerank, targets_rerank, 5),
+        "Recall@10": recall_at_k(preds_rerank, targets_rerank, 10),
+        "MRR": mrr(preds_rerank, targets_rerank),
+        "nDCG@10": ndcg_at_k(preds_rerank, targets_rerank, k=10),
+    }
 
-    results["MRR"] = mrr(all_preds, relevant_docs)
-    results["nDCG@10"] = ndcg_at_k(all_preds, relevant_docs, 10)
+    print(f"{'Metric':<12} {'Retriever':<12} {'Reranker':<12} {'Δ':<8}")
+    print("-"*60)
 
-    return results
+    for metric in ["Recall@5", "Recall@10", "MRR", "nDCG@10"]:
+        retr_val = retr_metrics[metric] if retr_metrics else 0.0
+        rerank_val = rerank_metrics[metric] if rerank_metrics else 0.0
+        delta = rerank_val - retr_val
+        delta_str = f"{delta:+.4f}" if retr_metrics else "N/A"
+        print(f"{metric:<12} {retr_val:.4f}      {rerank_val:.4f}      {delta_str}")
 
+if __name__ == "__main__":
+    main()
