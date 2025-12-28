@@ -22,48 +22,44 @@
 ## Архитектура проекта
 
 ```
-project/
-├── data/                    # Данные
+nlp-project/
 ├── models/                  # Обученные модели
 ├── src/
-│   ├── retriever/           # Bi-encoder модели
-│   │   └── baseline_retriever.py
-│   ├── reranker/            # Cross-encoder модели
-│   │   └── baseline_reranker.py
-│   ├── utils/               # Утилиты
-│   │   ├── model_interface.py    # Абстрактные интерфейсы
-│   │   └── preprocessing.py       # Обработка текста
-│   └── pipeline/            # Пайплайн поиска
-│       └── base_pipeline.py
-├── notebooks/
-│   ├── data_exploration.ipynb    # Анализ данных
-│   ├── integration.ipynb         # Интеграция моделей
-│   └── report_plots.ipynb        # Графики для отчёта
-├── images/                  # Графики
+│   ├── retriever/           # Скрипты для Retriever
+│   │   ├── train_retriever.py
+│   │   └── prepare_train_data_retriever.py
+│   ├── reranker/            # Скрипты для Reranker
+│   │   ├── train_reranker.py
+│   │   ├── prepare_train_data_reranker.py
+│   │   └── retrieve_data.py
+│   ├── pipeline/            # Пайплайн и оценка
+│   │   ├── retrieve_rerank.py      # Основной пайплайн
+│   │   └── evaluate_reranker.py    # Скрипт оценки
+│   ├── evaluate_retriever.py
+│   └── metrics.py
+├── images/                  # Графики результатов
 └── requirements.txt         # Зависимости
 ```
 
 ## Модели
 
-### Baseline Retriever
-- **Модель**: `paraphrase-multilingual-MiniLM-L12-v2`
-- **Метод**: Bi-encoder + cosine similarity
-- **Использование**: Первичный поиск top-k кандидатов
+### Retriever
+- **Модель**: `intfloat/multilingual-e5-base`
+- **Метод**: Bi-encoder (Fine-tuned)
+- **Использование**: Первичный поиск top-100 кандидатов
 
-### Baseline Reranker
-- **Модель**: `paraphrase-multilingual-MiniLM-L12-v2`
-- **Метод**: Cosine similarity (placeholder)
-- **Улучшение**: Cross-encoder (fine-tuned)
+### Reranker
+- **Модель**: `sdadas/polish-reranker-bge-v2`
+- **Метод**: Cross-encoder (Fine-tuned)
+- **Использование**: Переранжирование кандидатов для получения финального top-10
 
 ## Метрики
 
-| Модель | Recall@5 | Recall@10 | Recall@20 | MRR | nDCG@10 |
-|--------|----------|-----------|-----------|-----|---------|
-| Baseline Retriever | — | — | — | — | — |
-| Trained Retriever | — | — | — | — | — |
-| Retriever + Reranker | — | — | — | — | — |
-
-> Метрики будут добавлены после обучения моделей.
+| Модель | Recall@5 | Recall@10 | MRR | nDCG@10 |
+|--------|----------|-----------|-----|---------|
+| Baseline Retriever | 0.7975 | 0.8452 | 0.7046 | 0.7368 |
+| Trained Retriever | 0.8470 | 0.8893 | 0.7542 | 0.7869 |
+| Retriever + Reranker | 0.8692 | 0.9086 | 0.7808 | 0.8118 |
 
 ## Установка
 
@@ -73,22 +69,14 @@ pip install -r requirements.txt
 
 ## Использование
 
-```python
-from src.retriever.baseline_retriever import BaselineRetriever
-from src.reranker.baseline_reranker import BaselineReranker
-from src.pipeline.base_pipeline import BasePipeline
+Для запуска полного пайплайна поиска и реранкинга:
 
-# Инициализация
-retriever = BaselineRetriever()
-reranker = BaselineReranker()
-pipeline = BasePipeline(retriever, reranker)
+```bash
+# 1. Запуск поиска и реранкинга (генерация результатов)
+python src/pipeline/retrieve_rerank.py
 
-# Индексация корпуса
-corpus = [{"doc_id": "1", "text": "..."}, ...]
-retriever.index_corpus(corpus)
-
-# Поиск
-results = pipeline.search("Jaka jest stolica Polski?", top_k_retrieve=100, top_k_final=10)
+# 2. Оценка результатов (подсчет метрик)
+python src/evaluate_reranker.py
 ```
 
 ## Результаты
@@ -102,10 +90,16 @@ results = pipeline.search("Jaka jest stolica Polski?", top_k_retrieve=100, top_k
 ### nDCG@10 Comparison
 ![nDCG@10](images/ndcg.png)
 
+## Выводы
+
+1.  **Эффективность обучения Retriever**: Дообучение Bi-encoder модели (`intfloat/multilingual-e5-base`) на целевом датасете позволило улучшить качество первичного поиска. Recall@10 вырос с 0.8452 (Baseline) до 0.8893. Это подтверждает, что адаптация модели под домен WebFAQ повышает полноту поиска.
+2.  **Роль Reranker**: Внедрение второго этапа (Cross-encoder `sdadas/polish-reranker-bge-v2`) дало значительный прирост качества ранжирования. MRR вырос с 0.7542 до 0.7808, а nDCG@10 с 0.7869 до 0.8118. Это доказывает, что Cross-encoder эффективно уточняет выдачу, поднимая наиболее релевантные ответы в топ.
+3.  **Итоговый результат**: Реализованный двухэтапный пайплайн (Retrieve + Rerank) достиг Recall@10 ~91% и nDCG@10 ~0.81, что является отличным показателем для вопросно-ответной системы.
+
 ## Команда
 
 | Участник | Роль |
 |------|-----------------|
-| Анастасия Бронина | Архитектура, baseline, интеграция |
+| Анастасия Бронина | Архитектура проекта,интеграция компонентов, подготовка отчета |
 | Софья Князева | Dense Retriever, FAISS, метрики |
 | Александр Гусев | Cross-encoder Reranker, обучение |

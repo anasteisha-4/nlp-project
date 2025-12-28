@@ -3,14 +3,12 @@ from sentence_transformers import SentenceTransformer
 import numpy as np
 from metrics import recall_at_k, hit_rate_at_k, mrr, ndcg_at_k
 
-# ===== ПЕРЕКЛЮЧАТЕЛЬ =====
-USE_ARTIFICIAL_DATA = False  # True = искусственные данные, False = WebFAQ
+USE_ARTIFICIAL_DATA = False
 
 def main():
     if USE_ARTIFICIAL_DATA:
         print("Using artificial dataset for testing metrics...")
 
-        # ===== ARTIFICIAL DATA =====
         corpus_texts = ["doc1 about cats", "doc2 about dogs", "doc3 about birds"]
         corpus_ids = ["d1", "d2", "d3"]
 
@@ -25,7 +23,6 @@ def main():
     else:
         print("Loading WebFAQ (pol) dataset...")
 
-        # ===== REAL DATA =====
         corpus_ds = load_dataset(
             "PaDaS-Lab/webfaq-retrieval",
             "pol-corpus",
@@ -62,7 +59,6 @@ def main():
             pid = row["corpus-id"]
             qrels.setdefault(qid, set()).add(pid)
 
-        # ===== LIMITED FOR QUICK TEST =====
         corpus_ids = list(corpus.keys())
         corpus_texts = ["passage: " + corpus[cid] for cid in corpus_ids]
 
@@ -71,12 +67,9 @@ def main():
 
     print(f"Loaded {len(corpus_ids)} docs, {len(query_ids)} queries")
 
-    # ===== LOAD RETRIEVER =====
     print("Loading retriever...")
-    model_path = "C:/Users/sofiy/PycharmProjects/nlp-project/models/models/retriever"
+    model_path = "/Users/anastasia/Desktop/nlp-project/models/retriever"
     model = SentenceTransformer(model_path)
-
-    # ===== EMBEDDINGS =====
     print("Encoding corpus...")
     doc_embs = model.encode(
         corpus_texts,
@@ -93,7 +86,6 @@ def main():
         show_progress_bar=True
     )
 
-    # ===== RETRIEVAL =====
     print("Retrieving...")
     scores = query_embs @ doc_embs.T
 
@@ -102,7 +94,6 @@ def main():
         ranking = np.argsort(scores[i])[::-1][:20]
         preds[qid] = [corpus_ids[j] for j in ranking]
 
-    # ===== METRICS =====
     print("\n Metrics:")
     targets = [qrels[qid] for qid in query_ids]
     predictions = [preds[qid] for qid in query_ids]

@@ -1,4 +1,3 @@
-# generate_retrieved_top100.py
 import json
 import os
 from datasets import load_dataset

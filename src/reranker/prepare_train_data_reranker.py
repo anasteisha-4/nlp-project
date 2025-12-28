@@ -1,4 +1,3 @@
-# prepare_reranker_pairs.py
 import json
 import os
 from datasets import load_dataset

@@ -1,8 +1,7 @@
-# test_reranker.py
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import torch
 
-model_path = "C:/Users/Alex/Desktop/nlp-project/models/reranker"
+model_path = "/Users/anastasia/Desktop/nlp-project/models/reranker"
 
 tokenizer = AutoTokenizer.from_pretrained(model_path)
 model = AutoModelForSequenceClassification.from_pretrained(

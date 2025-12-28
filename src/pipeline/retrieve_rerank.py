@@ -1,4 +1,3 @@
-# apply_reranker_custom_fp16.py
 import json
 import os
 import torch
@@ -42,7 +41,7 @@ def main():
     retrieved_results = semantic_search(query_embs, corpus_embs, top_k=100)
 
 
-    reranker_path = "model/reranker"
+    reranker_path = "models/reranker"
     tokenizer = AutoTokenizer.from_pretrained(reranker_path)
     reranker = AutoModelForSequenceClassification.from_pretrained(reranker_path).to(device)
     reranker.eval()
